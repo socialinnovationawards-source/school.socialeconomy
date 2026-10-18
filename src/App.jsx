@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import GithubSlugger from 'github-slugger';
+import rehypeSlug from 'rehype-slug';
+import remarkGfm from 'remark-gfm';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -19,76 +23,6 @@ import articles from './articles.json';
 
 const categories = ['همه', ...new Set(articles.map((article) => article.category))];
 const articlesPerPage = 7;
-
-const unemploymentOutline = [
-  { id: 'what-is-unemployment', title: 'بیکاری چیست؟' },
-  { id: 'unemployment-rate', title: 'نرخ بیکاری چیست و چگونه محاسبه می‌شود؟' },
-  {
-    id: 'unemployment-types',
-    title: 'انواع بیکاری کدام‌اند؟',
-    children: [
-      { id: 'frictional-unemployment', title: '۱. بیکاری اصطکاکی چیست؟' },
-      { id: 'structural-unemployment', title: '۲. بیکاری ساختاری چیست؟' },
-      { id: 'cyclical-unemployment', title: '۳. بیکاری ادواری یا چرخه‌ای چیست؟' },
-      { id: 'seasonal-unemployment', title: '۴. بیکاری فصلی چیست؟' },
-      { id: 'technological-unemployment', title: '۵. بیکاری ناشی از فناوری چیست؟' },
-      { id: 'wage-unemployment', title: '۶. بیکاری ناشی از دستمزد بالاتر از سطح تعادلی چیست؟' },
-      { id: 'hidden-unemployment', title: '۷. بیکاری پنهان چیست؟' },
-    ],
-  },
-  {
-    id: 'unemployment-causes',
-    title: 'مهم‌ترین علت‌های بیکاری چیست؟',
-    children: [
-      { id: 'recession-and-demand', title: '۱. رکود اقتصادی و کاهش تقاضا' },
-      { id: 'skills-mismatch', title: '۲. ناهماهنگی میان مهارت‌های نیروی کار و نیاز بازار' },
-      { id: 'technology-and-automation', title: '۳. تغییرات فناوری و اتوماسیون' },
-      { id: 'investment-and-production', title: '۴. کاهش سرمایه‌گذاری و ضعف تولید' },
-      { id: 'labor-force-growth', title: '۵. رشد جمعیت فعال و ورود نیروی کار جدید' },
-      { id: 'barriers-and-discrimination', title: '۶. موانع ورود به بازار کار و تبعیض' },
-      { id: 'business-environment', title: '۷. مشکلات ساختاری محیط کسب‌وکار' },
-    ],
-  },
-  {
-    id: 'unemployment-employment-differences',
-    title: 'تفاوت بیکاری، اشتغال ناقص و عدم مشارکت اقتصادی چیست؟',
-  },
-  {
-    id: 'unemployment-consequences',
-    title: 'بیکاری چه پیامدهایی برای اقتصاد و جامعه دارد؟',
-    children: [
-      { id: 'income-and-poverty', title: 'کاهش درآمد و افزایش فقر' },
-      { id: 'production-capacity', title: 'کاهش تولید و استفاده‌نشدن از ظرفیت اقتصادی' },
-      { id: 'inequality-and-deprivation', title: 'افزایش نابرابری و تشدید محرومیت اجتماعی' },
-      { id: 'skills-and-return-to-work', title: 'کاهش مهارت‌ها و دشوارتر شدن بازگشت به بازار کار' },
-      { id: 'social-consequences', title: 'پیامدهای فردی و اجتماعی' },
-    ],
-  },
-  { id: 'reducing-unemployment', title: 'چگونه می‌توان بیکاری را کاهش داد؟' },
-  { id: 'unemployment-summary', title: 'جمع‌بندی' },
-  {
-    id: 'unemployment-faq',
-    title: 'پرسش‌های متداول درباره بیکاری',
-    children: [
-      { id: 'unemployment-simple-definition', title: 'بیکاری به زبان ساده چیست؟' },
-      { id: 'main-unemployment-types', title: 'مهم‌ترین انواع بیکاری کدام‌اند؟' },
-      { id: 'main-unemployment-cause', title: 'مهم‌ترین علت بیکاری چیست؟' },
-      { id: 'structural-and-cyclical-difference', title: 'تفاوت بیکاری ساختاری و ادواری چیست؟' },
-      { id: 'who-counts-as-unemployed', title: 'آیا هر فردی که شغل ندارد، بیکار محسوب می‌شود؟' },
-      { id: 'unemployment-rate-calculation', title: 'نرخ بیکاری چگونه محاسبه می‌شود؟' },
-      { id: 'technology-and-unemployment', title: 'آیا فناوری باعث افزایش بیکاری می‌شود؟' },
-      { id: 'how-to-reduce-unemployment', title: 'چگونه می‌توان بیکاری را کاهش داد؟' },
-    ],
-  },
-  { id: 'further-reading', title: 'منابع پیشنهادی برای مطالعه بیشتر' },
-];
-
-const unemploymentHeadings = new Map(
-  unemploymentOutline.flatMap((section) => [
-    [section.title, { id: section.id, level: 2 }],
-    ...(section.children || []).map((heading) => [heading.title, { id: heading.id, level: 3 }]),
-  ]),
-);
 
 const videos = [
   {
@@ -603,7 +537,28 @@ function PreviewDialog({ item, onClose }) {
   );
 }
 
-function ArticleOutline() {
+function getArticleOutline(text) {
+  const slugger = new GithubSlugger();
+  const sections = [];
+  let currentSection = null;
+
+  text.split(/\r?\n/).forEach((line) => {
+    const match = /^(#{2,3})\s+(.+?)\s*#*\s*$/.exec(line.trim());
+    if (!match) return;
+
+    const heading = { id: slugger.slug(match[2]), title: match[2], children: [] };
+    if (match[1].length === 2) {
+      currentSection = heading;
+      sections.push(heading);
+    } else if (currentSection) {
+      currentSection.children.push(heading);
+    }
+  });
+
+  return sections;
+}
+
+function ArticleOutline({ sections }) {
   const [expandedSections, setExpandedSections] = useState(() => new Set());
 
   const toggleSection = (sectionId) => {
@@ -631,12 +586,12 @@ function ArticleOutline() {
       <h2 id="article-outline-title">فهرست مطالب</h2>
       <nav aria-label="فهرست تیترهای مقاله">
         <ol>
-          {unemploymentOutline.map((section) => {
+          {sections.map((section) => {
             const isExpanded = expandedSections.has(section.id);
             return (
               <li key={section.id}>
                 <div className="article-outline-row">
-                  {section.children && (
+                  {section.children.length > 0 && (
                     <button
                       type="button"
                       aria-label={`${isExpanded ? 'بستن' : 'باز کردن'} زیرتیترهای ${section.title}`}
@@ -647,9 +602,10 @@ function ArticleOutline() {
                       {isExpanded ? <Minus size={14} /> : <Plus size={14} />}
                     </button>
                   )}
+                  {section.children.length === 0 && <span className="article-outline-toggle-spacer" aria-hidden="true" />}
                   {renderLink(section)}
                 </div>
-                {section.children && (
+                {section.children.length > 0 && (
                   <ol
                     className="article-outline-children"
                     id={`${section.id}-subheadings`}
@@ -669,28 +625,30 @@ function ArticleOutline() {
   );
 }
 
-function UnemploymentArticleContent({ text }) {
-  const lines = text.split(/\r?\n/);
-  const sourcesIndex = lines.indexOf('منابع پیشنهادی برای مطالعه بیشتر');
-
-  return lines.map((line, index) => {
-    const content = line.trim();
-    if (!content) return null;
-
-    const heading = unemploymentHeadings.get(content);
-    if (heading?.level === 2) {
-      return <h2 id={heading.id} key={index}>{content}</h2>;
-    }
-    if (heading?.level === 3) return <h3 id={heading.id} key={index}>{content}</h3>;
-    if (content.startsWith('نرخ بیکاری =')) {
-      return <p className="article-equation" key={index}>{content}</p>;
-    }
-    return (
-      <p className={sourcesIndex >= 0 && index > sourcesIndex ? 'article-source' : undefined} key={index}>
-        {content}
-      </p>
-    );
-  });
+function ArticleMarkdown({ text }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeSlug]}
+      components={{
+        blockquote: ({ children }) => <blockquote className="article-key-point">{children}</blockquote>,
+        p: ({ children }) => {
+          const text = React.Children.toArray(children)
+            .filter((child) => typeof child === 'string')
+            .join('');
+          const isEquation = text.includes('=') && text.length < 180;
+          return <p className={isEquation ? 'article-equation' : undefined}>{children}</p>;
+        },
+        table: ({ children }) => (
+          <div className="article-table-scroll">
+            <table>{children}</table>
+          </div>
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
 }
 
 function RecentCategoryArticles({ article }) {
@@ -727,7 +685,8 @@ function ArticlePage({ article }) {
   const [articleText, setArticleText] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const isUnemploymentArticle = article.id === 'article-05';
+  const outlineSections = useMemo(() => getArticleOutline(articleText), [articleText]);
+  const hasOutline = outlineSections.length >= 3;
   const relatedArticles = useMemo(() => {
     const sameCategory = articles.filter(
       (candidate) => candidate.id !== article.id && candidate.category === article.category,
@@ -739,18 +698,22 @@ function ArticlePage({ article }) {
   }, [article]);
   const articleDetail = (
     <article className="article-detail">
-      <img className="article-detail-image" src={article.image} alt={`${article.title}، تصویر شاخص`} />
-      <div className="article-detail-header">
-        <span className="article-category">{article.category}</span>
-        <h1>{article.title}</h1>
+      <div className="article-detail-hero">
+        <img className="article-detail-image" src={article.image} alt={`${article.title}، تصویر شاخص`} />
+        <div className="article-detail-header">
+          <span className="article-category">{article.category}</span>
+          <h1>{article.title}</h1>
+        </div>
+      </div>
+      <div className="article-detail-intro">
         <p>{article.description}</p>
         <ArticleMeta article={article} />
       </div>
       {loading && <p className="article-detail-status">در حال بارگذاری مقاله…</p>}
       {error && <p className="article-detail-status" role="alert">بارگذاری متن مقاله ممکن نشد.</p>}
       {articleText && (
-        <div className={`article-detail-content${isUnemploymentArticle ? ' article-detail-content-structured' : ''}`}>
-          {isUnemploymentArticle ? <UnemploymentArticleContent text={articleText} /> : articleText}
+        <div className="article-detail-content article-detail-content-structured">
+          <ArticleMarkdown text={articleText} />
         </div>
       )}
     </article>
@@ -786,14 +749,12 @@ function ArticlePage({ article }) {
   }, [article]);
 
   return (
-    <main className={`article-page${isUnemploymentArticle ? ' article-page-with-outline' : ''}`}>
-      {isUnemploymentArticle ? (
-        <div className="article-reading-layout">
-          <ArticleOutline />
-          {articleDetail}
-          <RecentCategoryArticles article={article} />
-        </div>
-      ) : articleDetail}
+    <main className="article-page">
+      <div className={`article-reading-layout${hasOutline ? '' : ' article-reading-layout-no-outline'}`}>
+        {hasOutline && <ArticleOutline sections={outlineSections} />}
+        {articleDetail}
+        <RecentCategoryArticles article={article} />
+      </div>
       {relatedArticles.length > 0 && (
         <section className="related-articles" aria-labelledby="related-articles-title">
           <h2 id="related-articles-title">مقالات مشابه</h2>
