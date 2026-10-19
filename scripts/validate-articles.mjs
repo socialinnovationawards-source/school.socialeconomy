@@ -10,6 +10,12 @@ const errors = [];
 if (articles.length !== 20) errors.push(`Expected 20 articles, found ${articles.length}`);
 
 for (const article of articles) {
+  if (!article.image?.startsWith('/images/')) {
+    errors.push(`${article.id}: image path must point to a public image`);
+  } else if (!fs.existsSync(path.join(root, 'public', article.image.slice(1)))) {
+    errors.push(`${article.id}: missing ${article.image}`);
+  }
+
   if (!article.content.startsWith('/articles/') || !article.content.endsWith('.md')) {
     errors.push(`${article.id}: content path must point to a Markdown file`);
     continue;

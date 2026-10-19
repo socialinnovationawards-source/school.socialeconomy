@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/generate-search-index.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/generate-search-index.mjs",
     "build": "vite build",
     "preview": "vite preview",
+    "optimize:images": "node scripts/optimize-images.mjs",
     "validate:articles": "node scripts/validate-articles.mjs"
   },
   "dependencies": {
@@ -20,6 +23,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "sharp": "^0.35.5",
     "vite": "^6.0.5"
   }
 }

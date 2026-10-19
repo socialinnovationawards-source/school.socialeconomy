@@ -3,23 +3,19 @@ import ReactMarkdown from 'react-markdown';
 import GithubSlugger from 'github-slugger';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
+import { normalizeArticleSearchText } from './article-search.js';
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  FileText,
-  Lightbulb,
-  Leaf,
   Menu,
   Minus,
   Play,
   Plus,
   Search,
-  UsersRound,
-  UserRound,
   X,
 } from 'lucide-react';
 import articles from './articles.json';
+import logo from '../pic/logo.png';
 
 const categories = ['همه', ...new Set(articles.map((article) => article.category))];
 const articlesPerPage = 7;
@@ -31,96 +27,100 @@ const videos = [
     subtitle: 'اقتصاد اجتماعی چیست؟',
     episode: 'قسمت ۱',
     videoUrl: 'https://www.aparat.com/video/video/embed/videohash/mwv1805/vt/frame',
-    image: '/images/video-what-is-social-economy.jpg',
+    image: '/images/video-what-is-social-economy.webp',
   },
   {
-    id: 'cooperation',
-    title: 'همکاری‌ها در عمل',
-    subtitle: 'تعاونی‌ها و توسعه محلی',
+    id: 'social-excellence',
+    title: 'تجربه الگوی تعالی اجتماعی رسالت',
+    subtitle: 'محمدحسین حسین‌زاده',
     episode: 'قسمت ۲',
-    duration: '۲۴:۰۸',
-    image: '/images/video-cooperation.jpg',
+    videoUrl: 'https://www.aparat.com/video/video/embed/videohash/rya1c7o/vt/frame',
+    image: '/images/hajhosein.jpg',
   },
   {
-    id: 'future',
-    title: 'آینده‌ای برای همه',
-    subtitle: 'راهکارهایی برای زیست پایدار',
+    id: 'behavioral-governance',
+    title: 'کارگاه ابزارها و تجربیات حکمرانی رفتاری در ایران',
+    subtitle: 'دکتر علیرضا نفیسی',
     episode: 'قسمت ۳',
-    duration: '۱۹:۴۲',
-    image: '/images/video-social-economy.jpg',
+    videoUrl: 'https://www.aparat.com/video/video/embed/videohash/ipq75k4/vt/frame',
+    image: '/images/nafisi.jpg',
+  },
+  {
+    id: 'institutional-development',
+    title: 'وضعیت توسعه ایران از منظر نظریات نهادی',
+    subtitle: 'دکتر فرشاد مومنی',
+    episode: 'قسمت ۴',
+    videoUrl: 'https://www.aparat.com/video/video/embed/videohash/ihz1033/vt/frame',
+    image: '/images/momeni.jpg',
+  },
+  {
+    id: 'social-schools',
+    title: 'تاریخ مکاتب اجتماعی در دانش اقتصاد',
+    subtitle: 'دکتر علی‌اکبر ناسخیان',
+    episode: 'قسمت ۵',
+    videoUrl: 'https://www.aparat.com/video/video/embed/videohash/kdk0751/vt/frame',
+    image: '/images/nasekhian.jpg',
   },
 ];
 
-const features = [
-  {
-    title: 'محتوای تخصصی',
-    description: 'از نظریه تا تجربه‌های واقعی',
-    icon: Leaf,
-    href: '#videos',
-  },
-  {
-    title: 'دوره‌های آموزشی',
-    description: 'یادگیری در کنار متخصصان',
-    icon: UsersRound,
-    href: '#videos',
-  },
-  {
-    title: 'مقالات و تحلیل‌ها',
-    description: 'بررسی مسائل روز جهان و ایران',
-    icon: FileText,
-    href: '#articles',
-  },
-  {
-    title: 'پیشنهادهای کاربردی',
-    description: 'برای کنشگران و سیاست‌گذاران',
-    icon: Lightbulb,
-    href: '#contact',
-  },
-];
+let articleSearchIndexPromise;
 
-const normalize = (value) =>
-  value.replaceAll('ي', 'ی').replaceAll('ى', 'ی').replaceAll('ك', 'ک').trim().toLocaleLowerCase('fa');
+function loadArticleSearchIndex() {
+  if (!articleSearchIndexPromise) {
+    articleSearchIndexPromise = fetch('/search-index.json')
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Could not load article search index: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((index) => {
+        if (!index || typeof index !== 'object' || Array.isArray(index)) {
+          throw new Error('Article search index has an invalid format.');
+        }
 
-function BrandMark() {
+        return Object.fromEntries(
+          Object.entries(index).map(([id, text]) => {
+            if (typeof text !== 'string') {
+              throw new Error(`Article search index entry "${id}" is not text.`);
+            }
+            return [id, normalizeArticleSearchText(text)];
+          }),
+        );
+      })
+      .catch((error) => {
+        articleSearchIndexPromise = undefined;
+        throw error;
+      });
+  }
+
+  return articleSearchIndexPromise;
+}
+
+function BrandLogo() {
   return (
-    <svg className="brand-mark" viewBox="0 0 40 40" aria-hidden="true" fill="none">
-      <path d="M20 33.5V18.8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <path
-        d="M20.1 20.4C11.7 20.4 7.7 15.1 8 7.4c7.7-.1 13.1 3.8 13.1 11.9"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M20.1 25.4c.1-7.8 4.7-12.3 12-12.6.3 7.8-3.5 12.6-12 12.6Z"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M13.2 33.5h13.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
+    <span
+      className="brand-logo"
+      style={{ '--brand-logo-image': `url("${logo}")` }}
+      aria-hidden="true"
+    />
   );
 }
 
-function Header({ query, onQueryChange, onLogin }) {
+function Header({ query, onQueryChange }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const links = [
-    ['خانه', '#home'],
-    ['دوره‌ها', '#courses'],
-    ['مقالات', '#articles'],
-    ['موضوعات', '#topics'],
-    ['درباره ما', '#about'],
-    ['ارتباط با ما', '#contact'],
+    ['خانه', 'https://socialeconomy.ir'],
+    ['مدرسه اقتصاد', 'https://school.socialeconomy.ir'],
+    ['درباره ما', 'https://socialeconomy.ir/about-us/'],
+    ['ارتباط با ما', 'https://socialeconomy.ir/contact-us/'],
   ];
 
   return (
     <header className="site-header" id="home">
-      <a className="brand" href="#home" aria-label="مدرسه اقتصاد، صفحه اصلی">
-        <BrandMark />
-        <span>مدرسه اقتصاد</span>
+      <a className="brand" href="https://socialeconomy.ir" aria-label="مدرسه اقتصاد، صفحه اصلی">
+        <BrandLogo />
       </a>
       <button
         className="mobile-menu-toggle icon-button"
@@ -159,8 +159,8 @@ function Header({ query, onQueryChange, onLogin }) {
           dir="rtl"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="جستجو در مقالات، دوره‌ها، موضوعات و ..."
-          aria-label="جستجو در مقالات، دوره‌ها و موضوعات"
+          placeholder="جستجو در متن کامل مقاله‌ها..."
+          aria-label="جستجو در مقاله‌ها"
         />
         {query && (
           <button
@@ -173,10 +173,6 @@ function Header({ query, onQueryChange, onLogin }) {
           </button>
         )}
       </div>
-      <button className="login-link" type="button" onClick={onLogin}>
-        <span>ورود / ثبت‌نام</span>
-        <span className="login-icon"><UserRound size={17} /></span>
-      </button>
     </header>
   );
 }
@@ -195,18 +191,21 @@ function Hero({ onPlay }) {
         </div>
         <h1 id="hero-title">
           <span>مدرسه اقتصاد</span>
-          <span className="headline-accent">اقتصاد اجتماعی</span>
+          <span className="headline-accent">
+            اقتصاد را در پیوند با زندگی اجتماعی، توسعه پایدار و عدالت اجتماعی بیاموزید.
+          </span>
         </h1>
-        <p>
-          با هم بیاموزیم، بیندیشیم و راهکارهای عملی برای اقتصادی عادلانه‌تر و پایدارتر پیدا کنیم.
-        </p>
-        <a className="hero-cta" href="#videos">
+        <a
+          className="hero-cta"
+          href="https://www.aparat.com/socialeconomy.ir"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <span className="cta-play"><Play size={15} fill="currentColor" /></span>
           <span>مشاهده مجموعه ویدیوها</span>
         </a>
       </div>
       <VideoCarousel onPlay={onPlay} />
-      <FeatureCards />
     </section>
   );
 }
@@ -284,34 +283,53 @@ function VideoCarousel({ onPlay }) {
   );
 }
 
-function FeatureCards() {
-  return (
-    <section className="feature-grid" id="courses" aria-label="بخش‌های مدرسه اقتصاد">
-      {features.map(({ title, description, icon: Icon, href }) => (
-        <a className="feature-card" href={href} key={title}>
-          <span className="feature-icon"><Icon size={21} strokeWidth={1.8} /></span>
-          <strong>{title}</strong>
-          <span className="feature-description">{description}</span>
-        </a>
-      ))}
-    </section>
-  );
-}
-
-function ArticlePanel({ query, onViewAll }) {
+function ArticlePanel({ query, onClearSearch }) {
   const [category, setCategory] = useState('همه');
   const [page, setPage] = useState(1);
-  const normalizedQuery = normalize(query);
+  const [articleText, setArticleText] = useState(null);
+  const [searchStatus, setSearchStatus] = useState('idle');
+  const [searchAttempt, setSearchAttempt] = useState(0);
+  const normalizedQuery = normalizeArticleSearchText(query);
+
+  useEffect(() => {
+    if (!normalizedQuery) {
+      setSearchStatus('idle');
+      return undefined;
+    }
+    if (articleText) return undefined;
+
+    let cancelled = false;
+    setSearchStatus('loading');
+    loadArticleSearchIndex().then(
+      (index) => {
+        if (cancelled) return;
+        setArticleText(index);
+        setSearchStatus('idle');
+      },
+      (error) => {
+        if (cancelled) return;
+        console.error('Full-text article search failed.', error);
+        setSearchStatus('error');
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [articleText, normalizedQuery, searchAttempt]);
+
   const filteredArticles = useMemo(
     () =>
       articles.filter((article) => {
         const matchesCategory =
           category === 'همه' ||
           article.category === category;
-        const searchable = normalize(`${article.title} ${article.description || ''} ${article.category}`);
+        const searchable = normalizeArticleSearchText(
+          `${article.title} ${article.description || ''} ${article.category} ${articleText?.[article.id] || ''}`,
+        );
         return matchesCategory && (!normalizedQuery || searchable.includes(normalizedQuery));
       }),
-    [category, normalizedQuery],
+    [articleText, category, normalizedQuery],
   );
   const pageCount = Math.ceil(filteredArticles.length / articlesPerPage);
   const currentPage = Math.min(page, pageCount || 1);
@@ -334,15 +352,6 @@ function ArticlePanel({ query, onViewAll }) {
     <aside className="articles-panel" id="articles">
       <div className="articles-heading">
         <h2>مقالات آموزشی</h2>
-        <a
-          href="#article-list"
-          onClick={() => {
-            chooseCategory('همه');
-            onViewAll();
-          }}
-        >
-          مشاهده همه <ArrowLeft size={14} />
-        </a>
       </div>
       <div className="category-row" id="article-list" aria-label="دسته‌بندی مقالات">
         <div className="category-list">
@@ -359,6 +368,18 @@ function ArticlePanel({ query, onViewAll }) {
           ))}
         </div>
       </div>
+      {searchStatus === 'error' && (
+        <div className="empty-results" role="alert">
+          <strong>جست‌وجوی متن کامل مقاله‌ها انجام نشد.</strong>
+          <span>اتصال را بررسی کنید و دوباره تلاش کنید.</span>
+          <button type="button" onClick={() => setSearchAttempt((attempt) => attempt + 1)}>
+            تلاش دوباره
+          </button>
+        </div>
+      )}
+      {searchStatus === 'loading' && (
+        <div className="search-status" role="status">در حال جست‌وجو در متن کامل مقاله‌ها…</div>
+      )}
       {filteredArticles.length ? (
         <>
           {featured && <FeaturedArticle article={featured} />}
@@ -370,7 +391,7 @@ function ArticlePanel({ query, onViewAll }) {
             </div>
           )}
         </>
-      ) : (
+      ) : searchStatus !== 'loading' && searchStatus !== 'error' ? (
         <div className="empty-results" role="status">
           <Search size={21} />
           <strong>مقاله‌ای پیدا نشد</strong>
@@ -379,13 +400,13 @@ function ArticlePanel({ query, onViewAll }) {
             type="button"
             onClick={() => {
               chooseCategory('همه');
-              onViewAll();
+              onClearSearch();
             }}
           >
             نمایش همه مقالات
           </button>
         </div>
-      )}
+      ) : null}
       {pageCount > 1 && (
         <nav className="article-pagination" aria-label="صفحه‌های مقالات">
           <button
@@ -424,9 +445,9 @@ function ArticlePanel({ query, onViewAll }) {
 
 function FeaturedArticle({ article }) {
   return (
-    <a className="featured-article article-button" href={`#/posts/${article.id}`}>
+    <a className="featured-article article-button" href={`#/posts/${article.id}`} title={article.title}>
       <span className="featured-image-wrap">
-        <img src={article.image} alt={`${article.title}، تصویر شاخص`} />
+        <img src={article.image} alt={`${article.title}، تصویر شاخص`} decoding="async" />
       </span>
       <span className="featured-copy">
         <span className="article-category">{article.category}</span>
@@ -440,9 +461,9 @@ function FeaturedArticle({ article }) {
 
 function ArticleCard({ article }) {
   return (
-    <a className="article-card article-button" href={`#/posts/${article.id}`}>
+    <a className="article-card article-button" href={`#/posts/${article.id}`} title={article.title}>
       <span className="article-image-wrap">
-        <img src={article.image} alt="" loading="lazy" />
+        <img src={article.image} alt="" loading="lazy" decoding="async" />
       </span>
       <span className="article-card-copy">
         <strong>{article.title}</strong>
@@ -703,11 +724,8 @@ function ArticlePage({ article }) {
         <div className="article-detail-header">
           <span className="article-category">{article.category}</span>
           <h1>{article.title}</h1>
+          <ArticleMeta article={article} />
         </div>
-      </div>
-      <div className="article-detail-intro">
-        <p>{article.description}</p>
-        <ArticleMeta article={article} />
       </div>
       {loading && <p className="article-detail-status">در حال بارگذاری مقاله…</p>}
       {error && <p className="article-detail-status" role="alert">بارگذاری متن مقاله ممکن نشد.</p>}
@@ -778,8 +796,6 @@ function App() {
     return articles.find((article) => article.id === articleId) || null;
   });
   const [dialogItem, setDialogItem] = useState(null);
-  const [loginNotice, setLoginNotice] = useState(false);
-  const noticeDialogRef = useRef(null);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -792,72 +808,22 @@ function App() {
     return () => window.removeEventListener('hashchange', updateRoute);
   }, []);
 
-  useEffect(() => {
-    if (!loginNotice) return undefined;
-    const previousFocus = document.activeElement;
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setLoginNotice(false);
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const buttons = noticeDialogRef.current?.querySelectorAll('button:not([disabled])');
-      if (!buttons?.length) return;
-      const first = buttons[0];
-      const last = buttons[buttons.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    document.body.classList.add('dialog-open');
-    noticeDialogRef.current?.querySelector('button')?.focus();
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.classList.remove('dialog-open');
-      if (previousFocus instanceof HTMLElement) previousFocus.focus();
-    };
-  }, [loginNotice]);
-
   return (
     <>
-      <Header query={query} onQueryChange={setQuery} onLogin={() => setLoginNotice(true)} />
+      <Header query={query} onQueryChange={setQuery} />
       {activeArticle ? (
         <ArticlePage article={activeArticle} />
       ) : (
         <main className="page-layout">
           <Hero onPlay={setDialogItem} />
-          <ArticlePanel query={query} onViewAll={() => setQuery('')} />
+          <ArticlePanel query={query} onClearSearch={() => setQuery('')} />
         </main>
       )}
       <footer className="site-footer" id="contact">
-        <span><BrandMark /> مدرسه اقتصاد</span>
-        <p>با هم برای اقتصادی عادلانه‌تر و پایدارتر.</p>
+        <span><BrandLogo /></span>
+        <p>کلیه حقوق این وبسایت برای رسانه اقتصاد اجتماعی محفوظ است.</p>
       </footer>
       <PreviewDialog item={dialogItem} onClose={() => setDialogItem(null)} />
-      {loginNotice && (
-        <div className="notice-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setLoginNotice(false)}>
-          <section
-            className="notice-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="notice-title"
-            ref={noticeDialogRef}
-          >
-            <button className="dialog-close icon-button" type="button" aria-label="بستن" onClick={() => setLoginNotice(false)}>
-              <X size={19} />
-            </button>
-            <span className="notice-icon"><UserRound size={22} /></span>
-            <h2 id="notice-title">ورود و ثبت‌نام</h2>
-            <p>ورود کاربران در حال حاضر در دسترس نیست. به‌زودی همراه شما خواهیم بود.</p>
-            <button className="dialog-done" type="button" onClick={() => setLoginNotice(false)}>متوجه شدم</button>
-          </section>
-        </div>
-      )}
     </>
   );
 }
