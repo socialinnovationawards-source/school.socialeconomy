@@ -4,6 +4,7 @@ import GithubSlugger from 'github-slugger';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { normalizeArticleSearchText } from './article-search.js';
+import { articlePath, findArticleByPath } from './article-routes.js';
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,7 +16,6 @@ import {
   X,
 } from 'lucide-react';
 import articles from './articles.json';
-import logo from '../pic/logo.png';
 
 const categories = ['همه', ...new Set(articles.map((article) => article.category))];
 const articlesPerPage = 7;
@@ -101,7 +101,7 @@ function BrandLogo() {
   return (
     <span
       className="brand-logo"
-      style={{ '--brand-logo-image': `url("${logo}")` }}
+      style={{ '--brand-logo-image': 'url("/images/logo.png")' }}
       aria-hidden="true"
     />
   );
@@ -112,14 +112,15 @@ function Header({ query, onQueryChange }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const links = [
     ['خانه', 'https://socialeconomy.ir'],
-    ['مدرسه اقتصاد', 'https://school.socialeconomy.ir'],
+    ['مدرسه اقتصاد', '/'],
+    ['مقالات', '/articles/'],
     ['درباره ما', 'https://socialeconomy.ir/about-us/'],
     ['ارتباط با ما', 'https://socialeconomy.ir/contact-us/'],
   ];
 
   return (
     <header className="site-header" id="home">
-      <a className="brand" href="https://socialeconomy.ir" aria-label="مدرسه اقتصاد، صفحه اصلی">
+      <a className="brand" href="/" aria-label="مدرسه اقتصاد، صفحه اصلی">
         <BrandLogo />
       </a>
       <button
@@ -352,6 +353,7 @@ function ArticlePanel({ query, onClearSearch }) {
     <aside className="articles-panel" id="articles">
       <div className="articles-heading">
         <h2>مقالات آموزشی</h2>
+        <a href="/articles/" className="all-articles-link">نمایش همه مقاله‌ها</a>
       </div>
       <div className="category-row" id="article-list" aria-label="دسته‌بندی مقالات">
         <div className="category-list">
@@ -445,7 +447,7 @@ function ArticlePanel({ query, onClearSearch }) {
 
 function FeaturedArticle({ article }) {
   return (
-    <a className="featured-article article-button" href={`#/posts/${article.id}`} title={article.title}>
+    <a className="featured-article article-button" href={articlePath(article)} title={article.title}>
       <span className="featured-image-wrap">
         <img src={article.image} alt={`${article.title}، تصویر شاخص`} decoding="async" />
       </span>
@@ -461,7 +463,7 @@ function FeaturedArticle({ article }) {
 
 function ArticleCard({ article }) {
   return (
-    <a className="article-card article-button" href={`#/posts/${article.id}`} title={article.title}>
+    <a className="article-card article-button" href={articlePath(article)} title={article.title}>
       <span className="article-image-wrap">
         <img src={article.image} alt="" loading="lazy" decoding="async" />
       </span>
@@ -582,7 +584,7 @@ function getArticleOutline(text) {
 function ArticleOutline({ sections }) {
   const [expandedSections, setExpandedSections] = useState(() => new Set());
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 700px)').matches);
+  const [isMobile, setIsMobile] = useState(false);
   const triggerRef = useRef(null);
   const closeButtonRef = useRef(null);
   const outlineRef = useRef(null);
@@ -784,7 +786,7 @@ function RecentCategoryArticles({ article }) {
       <ol>
         {latestArticles.map((recentArticle, index) => (
           <li key={recentArticle.id}>
-            <a href={`#/posts/${recentArticle.id}`}>
+            <a href={articlePath(recentArticle)}>
                 <span className="recent-article-number">
                   {(index + 1).toLocaleString('fa-IR', { minimumIntegerDigits: 2 })}
                 </span>
@@ -801,11 +803,14 @@ function RecentCategoryArticles({ article }) {
   );
 }
 
-function ArticlePage({ article }) {
-  const [articleText, setArticleText] = useState('');
-  const [loading, setLoading] = useState(true);
+function ArticlePage({ article, initialMarkdown, initialContentHtml, initialOutline }) {
+  const [articleText, setArticleText] = useState(initialMarkdown || '');
+  const [loading, setLoading] = useState(!initialMarkdown && !initialContentHtml);
   const [error, setError] = useState(false);
-  const outlineSections = useMemo(() => getArticleOutline(articleText), [articleText]);
+  const outlineSections = useMemo(
+    () => initialOutline || getArticleOutline(articleText),
+    [articleText, initialOutline],
+  );
   const hasOutline = outlineSections.length >= 3;
   const relatedArticles = useMemo(() => {
     const sameCategory = articles.filter(
@@ -833,10 +838,17 @@ function ArticlePage({ article }) {
           <ArticleMarkdown text={articleText} />
         </div>
       )}
+      {!articleText && initialContentHtml && (
+        <div
+          className="article-detail-content article-detail-content-structured"
+          dangerouslySetInnerHTML={{ __html: initialContentHtml }}
+        />
+      )}
     </article>
   );
 
   useEffect(() => {
+    if (initialMarkdown || initialContentHtml) return undefined;
     const controller = new AbortController();
     setArticleText('');
     setLoading(true);
@@ -854,7 +866,7 @@ function ArticlePage({ article }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [article]);
+  }, [article, initialContentHtml, initialMarkdown]);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -886,32 +898,82 @@ function ArticlePage({ article }) {
   );
 }
 
-function App() {
+function getLocationRoute() {
+  const article = findArticleByPath(window.location.pathname, articles);
+  if (article) return { article, notFound: false };
+
+  const legacyMatch = window.location.hash.match(/^#\/posts\/([^/?#]+)$/);
+  const legacyArticle = legacyMatch
+    ? articles.find((candidate) => candidate.id === legacyMatch[1])
+    : null;
+  if (legacyArticle) return { article: legacyArticle, notFound: false };
+
+  const isUnknownArticlePath =
+    window.location.pathname.startsWith('/articles/') &&
+    window.location.pathname !== '/articles/' &&
+    window.location.pathname !== '/articles/index.html';
+  return { article: null, notFound: isUnknownArticlePath };
+}
+
+function ArticleNotFound() {
+  useEffect(() => {
+    document.title = 'مقاله پیدا نشد | مدرسه اقتصاد';
+  }, []);
+
+  return (
+    <main className="article-not-found">
+      <h1>مقاله پیدا نشد</h1>
+      <p>نشانی این مقاله معتبر نیست یا مقاله در دسترس نیست.</p>
+      <a href="/articles/">مشاهده فهرست مقاله‌ها</a>
+    </main>
+  );
+}
+
+function App({
+  initialHome,
+  initialArticleId,
+  initialArticleMarkdown,
+  initialArticleContentHtml,
+  initialArticleOutline,
+}) {
   const [query, setQuery] = useState('');
-  const [activeArticle, setActiveArticle] = useState(() => {
-    const articleId = window.location.hash.startsWith('#/posts/')
-      ? window.location.hash.slice('#/posts/'.length)
-      : '';
-    return articles.find((article) => article.id === articleId) || null;
+  const [route, setRoute] = useState(() => {
+    if (initialHome) return { article: null, notFound: false };
+    if (initialArticleId) {
+      return {
+        article: articles.find((article) => article.id === initialArticleId) || null,
+        notFound: false,
+      };
+    }
+    return getLocationRoute();
   });
   const [dialogItem, setDialogItem] = useState(null);
 
   useEffect(() => {
     const updateRoute = () => {
-      const articleId = window.location.hash.startsWith('#/posts/')
-        ? window.location.hash.slice('#/posts/'.length)
-        : '';
-      setActiveArticle(articles.find((article) => article.id === articleId) || null);
+      setRoute(getLocationRoute());
     };
+    window.addEventListener('popstate', updateRoute);
     window.addEventListener('hashchange', updateRoute);
-    return () => window.removeEventListener('hashchange', updateRoute);
+    return () => {
+      window.removeEventListener('popstate', updateRoute);
+      window.removeEventListener('hashchange', updateRoute);
+    };
   }, []);
 
   return (
     <>
       <Header query={query} onQueryChange={setQuery} />
-      {activeArticle ? (
-        <ArticlePage article={activeArticle} />
+      {route.article ? (
+        <ArticlePage
+          key={route.article.id}
+          article={route.article}
+          initialMarkdown={route.article.id === initialArticleId ? initialArticleMarkdown : undefined}
+          initialContentHtml={route.article.id === initialArticleId ? initialArticleContentHtml : undefined}
+          initialOutline={route.article.id === initialArticleId ? initialArticleOutline : undefined}
+        />
+      ) : route.notFound ? (
+        <ArticleNotFound />
       ) : (
         <main className="page-layout">
           <Hero onPlay={setDialogItem} />

@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node scripts/generate-search-index.mjs",
+    "predev": "node scripts/generate-search-index.mjs && node scripts/generate-sitemap.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/generate-search-index.mjs",
+    "prebuild": "node scripts/generate-search-index.mjs && node scripts/generate-sitemap.mjs",
     "build": "vite build",
+    "postbuild": "node scripts/generate-static-articles.mjs",
     "preview": "vite preview",
     "optimize:images": "node scripts/optimize-images.mjs",
-    "validate:articles": "node scripts/validate-articles.mjs"
+    "validate:articles": "node scripts/validate-articles.mjs",
+    "validate:seo": "node scripts/validate-seo-output.mjs"
   },
   "dependencies": {
     "github-slugger": "^2.0.0",
