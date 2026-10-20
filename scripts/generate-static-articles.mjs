@@ -6,6 +6,7 @@ import { renderToString } from 'react-dom/server';
 import react from '@vitejs/plugin-react';
 import { createServer } from 'vite';
 import { articlePath, articleUrl, SITE_ORIGIN } from '../src/article-routes.js';
+import { createArticleDescription } from './article-seo-metadata.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -73,13 +74,22 @@ function articleJsonLd(article) {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: article.title,
-    description: article.description.trim(),
+    description: article.seoDescription,
+    url: canonical,
     mainEntityOfPage: {
       '@type': 'WebPage',
       '@id': canonical,
     },
     image: new URL(article.image, SITE_ORIGIN).href,
     inLanguage: 'fa-IR',
+    publisher: {
+      '@type': 'Organization',
+      name: 'رسانه اقتصاد اجتماعی',
+      logo: {
+        '@type': 'ImageObject',
+        url: new URL('/images/logo.png', SITE_ORIGIN).href,
+      },
+    },
   };
 }
 
@@ -121,6 +131,9 @@ try {
 
   for (const article of articles) {
     const markdown = await readFile(path.join(root, 'public', article.content.slice(1)), 'utf8');
+    const description = createArticleDescription(markdown);
+    if (!description) throw new Error(`${article.id}: could not create a description from article content.`);
+    article.seoDescription = description;
     const markup = renderToString(
       React.createElement(App, {
         initialArticleId: article.id,
@@ -132,7 +145,7 @@ try {
     const pageHtml = replaceMeta(
       withRootMarkup(template, markup),
       `${article.title} | مدرسه اقتصاد`,
-      article.description.trim(),
+      description,
       canonical,
       new URL(article.image, SITE_ORIGIN).href,
       jsonLd,
@@ -155,6 +168,7 @@ try {
     indexCanonical,
     new URL('/images/hero-banner.webp', SITE_ORIGIN).href,
     null,
+    'website',
   )
     .replace(/<script id="seo-page-data"[\s\S]*?<\/script>\s*/gi, '')
     .replace(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*>\s*/gi, '')

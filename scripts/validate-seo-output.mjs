@@ -2,6 +2,7 @@ import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { articlePath, articleUrl, SITE_ORIGIN } from '../src/article-routes.js';
+import { createArticleDescription } from './article-seo-metadata.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -33,8 +34,13 @@ const robots = await readFile(path.join(root, 'public/robots.txt'), 'utf8');
 expect(robots.includes(`Sitemap: ${new URL('/sitemap.xml', SITE_ORIGIN).href}`), 'robots.txt does not reference the production sitemap.');
 
 const homeHtml = await readFile(path.join(dist, 'index.html'), 'utf8');
+expect(homeHtml.includes('<html lang="fa" dir="rtl">'), 'Homepage must retain Persian RTL document attributes.');
 expect(homeHtml.includes('<h1 id="hero-title">'), 'Homepage HTML is missing its initial H1.');
 expect(homeHtml.includes('href="/articles/"'), 'Homepage HTML is missing a crawlable article-index link.');
+expect(homeHtml.includes('<link rel="canonical" href="https://school.socialeconomy.ir/"'), 'Homepage canonical URL is missing or incorrect.');
+expect(homeHtml.includes('name="twitter:title" content="مدرسه اقتصاد | یادگیری اقتصاد اجتماعی"'), 'Homepage Twitter title is missing.');
+expect(homeHtml.includes('name="twitter:description"'), 'Homepage Twitter description is missing.');
+expect((homeHtml.match(/type="application\/ld\+json"/g) || []).length === 1, 'Homepage should retain exactly one WebSite JSON-LD entity.');
 
 const notFoundHtml = await readFile(path.join(dist, '404.html'), 'utf8');
 expect(notFoundHtml.includes('<h1>صفحه پیدا نشد</h1>'), 'Static 404 page is missing its not-found message.');
@@ -45,8 +51,13 @@ expect(!/<script\b(?=[^>]*\btype=["']module["'])/i.test(notFoundHtml), 'Static 4
 const indexPath = path.join(dist, 'articles/index.html');
 await access(indexPath).catch(() => failures.push('Generated article index is missing.'));
 const indexHtml = await readFile(indexPath, 'utf8');
+expect(indexHtml.includes('<html lang="fa" dir="rtl">'), 'Article index must retain Persian RTL document attributes.');
 expect(indexHtml.includes('<h1>فهرست مقاله‌های مدرسه اقتصاد</h1>'), 'Article index is missing its heading.');
+expect(indexHtml.includes(`rel="canonical" href="${new URL('/articles/', SITE_ORIGIN).href}"`), 'Article index canonical URL is missing or incorrect.');
+expect(indexHtml.includes('property="og:type" content="website"'), 'Article index Open Graph type should be website.');
 expect(!/<script\b(?=[^>]*\btype=["']module["'])/i.test(indexHtml), 'Article index should not load the app JavaScript.');
+const articleDescriptions = new Set();
+const articleTitles = new Set();
 for (const article of articles) {
   expect(indexHtml.includes(`href="${escapeHtml(articlePath(article))}"`), `Article index is missing the link for ${article.id}.`);
 }
@@ -55,20 +66,30 @@ for (const article of articles) {
   const outputPath = path.join(dist, decodeURIComponent(articlePath(article).slice(1)), 'index.html');
   await access(outputPath).catch(() => failures.push(`${article.id}: generated HTML file is missing.`));
   const html = await readFile(outputPath, 'utf8');
+  const markdown = await readFile(path.join(root, 'public', article.content.slice(1)), 'utf8');
+  const description = createArticleDescription(markdown);
+  articleDescriptions.add(description);
+  expect(description.length > 0 && description.length <= 160, `${article.id}: article description has an invalid length.`);
   const canonical = articleUrl(article);
   const title = `${article.title} | مدرسه اقتصاد`;
+  articleTitles.add(title);
   expect(html.includes(`<title>${escapeHtml(title)}</title>`), `${article.id}: article-specific title is missing.`);
+  expect(html.includes('<html lang="fa" dir="rtl">'), `${article.id}: article document must retain Persian RTL attributes.`);
   expect(html.includes(`rel="canonical" href="${canonical}"`), `${article.id}: canonical URL is missing or incorrect.`);
   expect((html.match(/rel="canonical"/g) || []).length === 1, `${article.id}: expected exactly one canonical URL.`);
   expect(html.includes(`property="og:url" content="${canonical}"`), `${article.id}: Open Graph URL is missing or incorrect.`);
   expect(html.includes(`property="og:title" content="${escapeHtml(title)}"`), `${article.id}: Open Graph title is missing or incorrect.`);
+  expect(html.includes('property="og:type" content="article"'), `${article.id}: Open Graph type is missing or incorrect.`);
   expect(html.includes(`name="twitter:card" content="summary_large_image"`), `${article.id}: Twitter Card metadata is missing.`);
-  expect(html.includes(`name="description" content="${escapeHtml(article.description.trim())}"`), `${article.id}: article description is missing.`);
+  expect(html.includes(`name="description" content="${escapeHtml(description)}"`), `${article.id}: article-content-based description is missing.`);
+  expect(html.includes(`property="og:description" content="${escapeHtml(description)}"`), `${article.id}: Open Graph description is missing or inconsistent.`);
+  expect(html.includes(`name="twitter:description" content="${escapeHtml(description)}"`), `${article.id}: Twitter description is missing or inconsistent.`);
   expect(html.includes(`property="og:image" content="${new URL(article.image, SITE_ORIGIN).href}"`), `${article.id}: absolute social image is missing.`);
   expect(html.includes(`<h1>${escapeHtml(article.title)}</h1>`), `${article.id}: initial HTML is missing the article H1.`);
   expect(html.includes('article-detail-content-structured'), `${article.id}: initial HTML is missing rendered article content.`);
   expect(!html.includes('"markdown":'), `${article.id}: source Markdown is duplicated in the HTML payload.`);
   expect(!html.includes('#/posts/'), `${article.id}: legacy hash-based article links remain.`);
+  expect(!/<meta\b[^>]*\bname=["']robots["'][^>]*\bcontent=["'][^"']*noindex/i.test(html), `${article.id}: article is unintentionally marked noindex.`);
   expect(html.includes('src="/assets/index-'), `${article.id}: client hydration entry is missing.`);
   expect(html.includes(`href="${article.image}" fetchpriority="high"`), `${article.id}: primary article image is not preloaded.`);
 
@@ -85,14 +106,20 @@ for (const article of articles) {
       const jsonLd = JSON.parse(jsonLdMatches[0][1]);
       expect(jsonLd['@type'] === 'Article', `${article.id}: JSON-LD should describe an Article.`);
       expect(jsonLd.headline === article.title, `${article.id}: JSON-LD headline does not match the article.`);
+      expect(jsonLd.description === description, `${article.id}: JSON-LD description does not match page metadata.`);
+      expect(jsonLd.url === canonical, `${article.id}: JSON-LD URL does not match canonical.`);
       expect(jsonLd.mainEntityOfPage?.['@id'] === canonical, `${article.id}: JSON-LD mainEntityOfPage does not match canonical.`);
       expect(jsonLd.image === new URL(article.image, SITE_ORIGIN).href, `${article.id}: JSON-LD image does not match article image.`);
+      expect(jsonLd.publisher?.name === 'رسانه اقتصاد اجتماعی', `${article.id}: JSON-LD publisher does not match the existing site identity.`);
+      expect(jsonLd.publisher?.logo?.url === new URL('/images/logo.png', SITE_ORIGIN).href, `${article.id}: JSON-LD publisher logo is missing or incorrect.`);
       expect(!('author' in jsonLd) && !('datePublished' in jsonLd) && !('dateModified' in jsonLd), `${article.id}: JSON-LD must not invent missing editorial metadata.`);
     } catch (error) {
       failures.push(`${article.id}: JSON-LD is invalid JSON (${error.message}).`);
     }
   }
 }
+expect(articleDescriptions.size === articles.length, 'Article meta descriptions are not unique.');
+expect(articleTitles.size === articles.length, 'Article page titles are not unique.');
 
 if (failures.length) {
   process.stderr.write(`${failures.map((failure) => `- ${failure}`).join('\n')}\n`);
