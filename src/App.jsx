@@ -581,6 +581,63 @@ function getArticleOutline(text) {
 
 function ArticleOutline({ sections }) {
   const [expandedSections, setExpandedSections] = useState(() => new Set());
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 700px)').matches);
+  const triggerRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const outlineRef = useRef(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 700px)');
+    const updateViewport = (event) => {
+      setIsMobile(event.matches);
+      if (!event.matches) setMobileOpen(false);
+    };
+    mediaQuery.addEventListener('change', updateViewport);
+    return () => mediaQuery.removeEventListener('change', updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile || !mobileOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setMobileOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusableElements = Array.from(
+        outlineRef.current?.querySelectorAll('a[href], button:not([disabled])') || [],
+      ).filter((element) => element.getClientRects().length > 0);
+      if (!focusableElements.length) {
+        event.preventDefault();
+        outlineRef.current?.focus();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (window.matchMedia('(max-width: 700px)').matches) triggerRef.current?.focus();
+    };
+  }, [isMobile, mobileOpen]);
 
   const toggleSection = (sectionId) => {
     setExpandedSections((current) => {
@@ -594,6 +651,7 @@ function ArticleOutline({ sections }) {
   const scrollToHeading = (event, headingId) => {
     event.preventDefault();
     document.getElementById(headingId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (isMobile) setMobileOpen(false);
   };
 
   const renderLink = (heading) => (
@@ -603,46 +661,87 @@ function ArticleOutline({ sections }) {
   );
 
   return (
-    <aside className="article-outline" aria-labelledby="article-outline-title">
-      <h2 id="article-outline-title">فهرست مطالب</h2>
-      <nav aria-label="فهرست تیترهای مقاله">
-        <ol>
-          {sections.map((section) => {
-            const isExpanded = expandedSections.has(section.id);
-            return (
-              <li key={section.id}>
-                <div className="article-outline-row">
+    <>
+      <button
+        ref={triggerRef}
+        className="article-outline-mobile-trigger"
+        type="button"
+        aria-controls="article-outline-panel"
+        aria-expanded={mobileOpen}
+        onClick={() => setMobileOpen(true)}
+      >
+        <Menu size={18} aria-hidden="true" />
+        <span>فهرست مطالب</span>
+        <ChevronLeft size={15} aria-hidden="true" />
+      </button>
+      <button
+        className="article-outline-backdrop"
+        type="button"
+        aria-label="بستن فهرست مطالب"
+        hidden={!isMobile || !mobileOpen}
+        onClick={() => setMobileOpen(false)}
+      />
+      <aside
+        ref={outlineRef}
+        id="article-outline-panel"
+        className={`article-outline${mobileOpen ? ' article-outline-open' : ''}`}
+        aria-labelledby="article-outline-title"
+        aria-hidden={isMobile && !mobileOpen}
+        aria-modal={isMobile && mobileOpen ? 'true' : undefined}
+        role={isMobile && mobileOpen ? 'dialog' : undefined}
+        tabIndex={-1}
+      >
+        <div className="article-outline-heading">
+          <h2 id="article-outline-title">فهرست مطالب</h2>
+          <button
+            ref={closeButtonRef}
+            className="article-outline-close"
+            type="button"
+            aria-label="بستن فهرست مطالب"
+            onClick={() => setMobileOpen(false)}
+          >
+            <X size={19} aria-hidden="true" />
+          </button>
+        </div>
+        <nav aria-label="فهرست تیترهای مقاله">
+          <ol>
+            {sections.map((section) => {
+              const isExpanded = expandedSections.has(section.id);
+              return (
+                <li key={section.id}>
+                  <div className="article-outline-row">
+                    {section.children.length > 0 && (
+                      <button
+                        type="button"
+                        aria-label={`${isExpanded ? 'بستن' : 'باز کردن'} زیرتیترهای ${section.title}`}
+                        aria-expanded={isExpanded}
+                        aria-controls={`${section.id}-subheadings`}
+                        onClick={() => toggleSection(section.id)}
+                      >
+                        {isExpanded ? <Minus size={14} /> : <Plus size={14} />}
+                      </button>
+                    )}
+                    {section.children.length === 0 && <span className="article-outline-toggle-spacer" aria-hidden="true" />}
+                    {renderLink(section)}
+                  </div>
                   {section.children.length > 0 && (
-                    <button
-                      type="button"
-                      aria-label={`${isExpanded ? 'بستن' : 'باز کردن'} زیرتیترهای ${section.title}`}
-                      aria-expanded={isExpanded}
-                      aria-controls={`${section.id}-subheadings`}
-                      onClick={() => toggleSection(section.id)}
+                    <ol
+                      className="article-outline-children"
+                      id={`${section.id}-subheadings`}
+                      hidden={!isExpanded}
                     >
-                      {isExpanded ? <Minus size={14} /> : <Plus size={14} />}
-                    </button>
+                      {section.children.map((heading) => (
+                        <li key={heading.id}>{renderLink(heading)}</li>
+                      ))}
+                    </ol>
                   )}
-                  {section.children.length === 0 && <span className="article-outline-toggle-spacer" aria-hidden="true" />}
-                  {renderLink(section)}
-                </div>
-                {section.children.length > 0 && (
-                  <ol
-                    className="article-outline-children"
-                    id={`${section.id}-subheadings`}
-                    hidden={!isExpanded}
-                  >
-                    {section.children.map((heading) => (
-                      <li key={heading.id}>{renderLink(heading)}</li>
-                    ))}
-                  </ol>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
-    </aside>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+      </aside>
+    </>
   );
 }
 
